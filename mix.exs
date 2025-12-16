@@ -33,7 +33,7 @@ defmodule Sashite.Epin.MixProject do
 
   defp deps do
     [
-      {:sashite_pin, "~> 1.0"},
+      {:sashite_pin, "~> 1.1"},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
