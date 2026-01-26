@@ -1,439 +1,299 @@
-# Sashite.Epin
+# epin.ex
 
-[![Hex.pm](https://img.shields.io/hexpm/v/sashite_epin.svg)](https://hex.pm/packages/sashite_epin)
-[![Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/sashite_epin)
-[![License](https://img.shields.io/hexpm/l/sashite_epin.svg)](https://github.com/sashite/epin.ex/blob/main/LICENSE.md)
+[![Hex Version](https://img.shields.io/hexpm/v/sashite_epin.svg)](https://hex.pm/packages/sashite_epin)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/sashite_epin/)
+[![CI](https://github.com/sashite/epin.ex/actions/workflows/elixir.yml/badge.svg?branch=main)](https://github.com/sashite/epin.ex/actions)
+[![License](https://img.shields.io/hexpm/l/sashite_epin.svg)](https://github.com/sashite/epin.ex/blob/main/LICENSE)
 
 > **EPIN** (Extended Piece Identifier Notation) implementation for Elixir.
 
-## What is EPIN?
+## Overview
 
-EPIN (Extended Piece Identifier Notation) extends [PIN](https://sashite.dev/specs/pin/1.0.0/) by adding a **derivation marker** to track piece style in cross-style games.
+This library implements the [EPIN Specification v1.0.0](https://sashite.dev/specs/epin/1.0.0/).
 
-**EPIN is simply: PIN + optional style derivation marker (`'`)**
-
-This library implements the [EPIN Specification v1.0.0](https://sashite.dev/specs/epin/1.0.0/) with a minimal compositional API.
-
-## Core Concept
-
-```elixir
-# EPIN is just PIN + derived flag
-pin = Sashite.Pin.parse!("K^")
-epin = Sashite.Epin.new(pin)
-
-Sashite.Epin.to_string(epin)  # => "K^" (native)
-epin.pin                       # => %Sashite.Pin{} instance
-epin.derived                   # => false
-
-# Mark as derived
-derived_epin = Sashite.Epin.mark_derived(epin)
-Sashite.Epin.to_string(derived_epin)  # => "K^'" (derived from opposite side's style)
-```
-
-**That's it.** All piece attributes come from the PIN component.
+EPIN extends [PIN](https://sashite.dev/specs/pin/1.0.0/) with an optional derivation marker (`'`) that flags whether a piece uses a native or derived style.
 
 ## Installation
+
+Add to your `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:sashite_epin, "~> 1.0"}
+    {:sashite_epin, "~> 1.1"}
   ]
 end
 ```
 
-This will also install `sashite_pin` as a transitive dependency.
-
-## Quick Start
+## Dependencies
 
 ```elixir
-# Parse an EPIN string
-{:ok, epin} = Sashite.Epin.parse("K^'")
-Sashite.Epin.to_string(epin)  # => "K^'"
-
-# Access five fundamental attributes through PIN component + derived flag
-epin.pin.type       # => :K (Piece Name)
-epin.pin.side       # => :first (Piece Side)
-epin.pin.state      # => :normal (Piece State)
-epin.pin.terminal   # => true (Terminal Status)
-epin.derived        # => true (Piece Style: derived vs native)
-
-# PIN component is a full %Sashite.Pin{} struct
-Sashite.Pin.enhanced?(epin.pin)  # => false
-Sashite.Pin.letter(epin.pin)     # => "K"
+{:sashite_pin, "~> 2.1"}  # Piece Identifier Notation
 ```
 
-## Basic Usage
+## Usage
 
-### Creating Identifiers
+### Parsing (String → Identifier)
+
+Convert an EPIN string into an `Identifier` struct.
 
 ```elixir
-# Parse from string
-{:ok, epin} = Sashite.Epin.parse("K^")    # Native
-{:ok, epin} = Sashite.Epin.parse("K^'")   # Derived
+# Safe parsing (returns {:ok, identifier} or {:error, reason})
+{:ok, epin} = Sashite.Epin.parse("K^'")
+Sashite.Epin.Identifier.to_string(epin)  # => "K^'"
 
-# Bang version
+# Access PIN attributes through the component
+epin.pin.abbr      # => :K
+epin.pin.side      # => :first
+epin.pin.state     # => :normal
+epin.pin.terminal  # => true
+
+# Access derivation status
+Sashite.Epin.Identifier.derived?(epin)  # => true
+Sashite.Epin.Identifier.native?(epin)   # => false
+
+# PIN component is a full Sashite.Pin.Identifier struct
+Sashite.Pin.Identifier.enhanced?(epin.pin)      # => false
+Sashite.Pin.Identifier.first_player?(epin.pin)  # => true
+
+# Bang variant raises on error
 epin = Sashite.Epin.parse!("K^'")
 
-# Create from PIN component
-pin = Sashite.Pin.parse!("K^")
-epin = Sashite.Epin.new(pin)                  # Native (default)
-epin = Sashite.Epin.new(pin, derived: true)   # Derived
+# Invalid input
+{:error, reason} = Sashite.Epin.parse("invalid")
+```
 
-# Validate
-Sashite.Epin.valid?("K^")    # => true
-Sashite.Epin.valid?("K^'")   # => true
-Sashite.Epin.valid?("K^''")  # => false (multiple markers)
-Sashite.Epin.valid?("K'^")   # => false (wrong order)
+### Formatting (Identifier → String)
+
+Convert an `Identifier` back to an EPIN string.
+
+```elixir
+alias Sashite.Epin.Identifier
+alias Sashite.Pin.Identifier, as: PinId
+
+# From PIN component
+{:ok, pin} = Sashite.Pin.parse("K^")
+epin = Identifier.new(pin)
+Identifier.to_string(epin)  # => "K^"
+
+# With derivation
+epin = Identifier.new(pin, derived: true)
+Identifier.to_string(epin)  # => "K^'"
+
+# String interpolation works via String.Chars protocol
+"Piece: #{epin}"  # => "Piece: K^'"
+```
+
+### Validation
+
+```elixir
+# Boolean check
+Sashite.Epin.valid?("K")         # => true
+Sashite.Epin.valid?("+R^'")      # => true
+Sashite.Epin.valid?("invalid")   # => false
+Sashite.Epin.valid?("K''")       # => false
+Sashite.Epin.valid?("K'^")       # => false
 ```
 
 ### Accessing Components
 
 ```elixir
-epin = Sashite.Epin.parse!("+R^'")
+{:ok, epin} = Sashite.Epin.parse("+R^'")
 
 # Get PIN component
-epin.pin                            # => %Sashite.Pin{}
-Sashite.Pin.to_string(epin.pin)     # => "+R^"
+epin.pin  # => %Sashite.Pin.Identifier{abbr: :R, side: :first, state: :enhanced, terminal: true}
+Sashite.Pin.Identifier.to_string(epin.pin)  # => "+R^"
 
 # Check derivation
-epin.derived                        # => true
-Sashite.Epin.derived?(epin)         # => true
+Sashite.Epin.Identifier.derived?(epin)  # => true
+Sashite.Epin.Identifier.native?(epin)   # => false
 
 # Serialize
-Sashite.Epin.to_string(epin)        # => "+R^'"
+Sashite.Epin.Identifier.to_string(epin)  # => "+R^'"
 ```
 
-### Five Fundamental Attributes
-
-All attributes accessible via PIN component + derived flag:
-
-```elixir
-epin = Sashite.Epin.parse!("+R^'")
-
-# From PIN component (4 attributes)
-epin.pin.type       # => :R (Piece Name)
-epin.pin.side       # => :first (Piece Side)
-epin.pin.state      # => :enhanced (Piece State)
-epin.pin.terminal   # => true (Terminal Status)
-
-# From EPIN (5th attribute)
-epin.derived        # => true (Piece Style: native vs derived)
-```
-
-## Transformations
+### Transformations
 
 All transformations return new immutable structs.
 
-### Change Derivation Status
-
 ```elixir
-epin = Sashite.Epin.parse!("K^")
+alias Sashite.Epin.Identifier
 
-# Mark as derived
-derived = Sashite.Epin.mark_derived(epin)
-Sashite.Epin.to_string(derived)  # => "K^'"
+{:ok, epin} = Sashite.Epin.parse("K^")
 
-# Mark as native
-native = Sashite.Epin.unmark_derived(derived)
-Sashite.Epin.to_string(native)  # => "K^"
+# Derivation transformations
+Identifier.to_string(Identifier.derive(epin))  # => "K^'"
+Identifier.to_string(Identifier.native(epin))  # => "K^"
 
-# Set explicitly
-toggled = Sashite.Epin.with_derived(epin, true)
-Sashite.Epin.to_string(toggled)  # => "K^'"
+# Replace PIN component
+{:ok, new_pin} = Sashite.Pin.parse("+Q^")
+Identifier.to_string(Identifier.with_pin(epin, new_pin))  # => "+Q^"
 ```
 
 ### Transform via PIN Component
 
 ```elixir
-epin = Sashite.Epin.parse!("K^'")
+alias Sashite.Epin.Identifier
+alias Sashite.Pin.Identifier, as: PinId
 
-# Replace PIN component
-new_pin = Sashite.Pin.with_type(epin.pin, :Q)
-Sashite.Epin.to_string(Sashite.Epin.with_pin(epin, new_pin))  # => "Q^'"
+{:ok, epin} = Sashite.Epin.parse("K^'")
+
+# Change abbr
+epin
+|> Identifier.with_pin(PinId.with_abbr(epin.pin, :Q))
+|> Identifier.to_string()  # => "Q^'"
 
 # Change state
-new_pin = Sashite.Pin.with_state(epin.pin, :enhanced)
-Sashite.Epin.to_string(Sashite.Epin.with_pin(epin, new_pin))  # => "+K^'"
-
-# Remove terminal marker
-new_pin = Sashite.Pin.with_terminal(epin.pin, false)
-Sashite.Epin.to_string(Sashite.Epin.with_pin(epin, new_pin))  # => "K'"
+epin
+|> Identifier.with_pin(PinId.enhance(epin.pin))
+|> Identifier.to_string()  # => "+K^'"
 
 # Change side
-new_pin = Sashite.Pin.flip(epin.pin)
-Sashite.Epin.to_string(Sashite.Epin.with_pin(epin, new_pin))  # => "k^'"
+epin
+|> Identifier.with_pin(PinId.flip(epin.pin))
+|> Identifier.to_string()  # => "k^'"
+
+# Remove terminal
+epin
+|> Identifier.with_pin(PinId.non_terminal(epin.pin))
+|> Identifier.to_string()  # => "K'"
 ```
 
-### Multiple Transformations
+### Component Queries
+
+Use the PIN API directly:
 
 ```elixir
-epin = Sashite.Epin.parse!("K^")
+alias Sashite.Epin.Identifier
+alias Sashite.Pin.Identifier, as: PinId
 
-# Transform PIN and derivation
-new_pin = epin.pin
-          |> Sashite.Pin.with_type(:Q)
-          |> Sashite.Pin.with_state(:enhanced)
+{:ok, epin} = Sashite.Epin.parse("+P^'")
 
-transformed = epin
-              |> Sashite.Epin.with_pin(new_pin)
-              |> Sashite.Epin.mark_derived()
+# PIN queries
+epin.pin.abbr                   # => :P
+epin.pin.side                   # => :first
+epin.pin.state                  # => :enhanced
+epin.pin.terminal               # => true
+PinId.first_player?(epin.pin)   # => true
+PinId.enhanced?(epin.pin)       # => true
 
-Sashite.Epin.to_string(transformed)  # => "+Q^'"
-```
-
-## Component Queries
-
-Use the PIN module API directly:
-
-```elixir
-epin = Sashite.Epin.parse!("+P^'")
-
-# PIN queries (name, side, state, terminal)
-epin.pin.type                        # => :P
-epin.pin.side                        # => :first
-epin.pin.state                       # => :enhanced
-epin.pin.terminal                    # => true
-Sashite.Pin.first_player?(epin.pin)  # => true
-Sashite.Pin.enhanced?(epin.pin)      # => true
-Sashite.Pin.letter(epin.pin)         # => "P"
-Sashite.Pin.prefix(epin.pin)         # => "+"
-Sashite.Pin.suffix(epin.pin)         # => "^"
-
-# EPIN queries (style)
-Sashite.Epin.derived?(epin)          # => true
-Sashite.Epin.native?(epin)           # => false
+# EPIN queries
+Identifier.derived?(epin)  # => true
+Identifier.native?(epin)   # => false
 
 # Compare EPINs
-other = Sashite.Epin.parse!("+P^")
-Sashite.Pin.same_type?(epin.pin, other.pin)   # => true (both P)
-Sashite.Pin.same_state?(epin.pin, other.pin)  # => true (both enhanced)
-Sashite.Epin.same_derived?(epin, other)       # => false (different derivation)
+{:ok, other} = Sashite.Epin.parse("+P^")
+PinId.same_abbr?(epin.pin, other.pin)    # => true
+PinId.same_state?(epin.pin, other.pin)   # => true
+Identifier.same_derived?(epin, other)    # => false
 ```
 
 ## API Reference
 
-### Main Module
+### Types
 
 ```elixir
-# Parse EPIN string
-Sashite.Epin.parse(epin_string)   # => {:ok, %Sashite.Epin{}} | {:error, reason}
-Sashite.Epin.parse!(epin_string)  # => %Sashite.Epin{} | raises ArgumentError
+# Identifier represents a parsed EPIN combining PIN with derivation status.
+defmodule Sashite.Epin.Identifier do
+  @type t :: %__MODULE__{
+    pin: Sashite.Pin.Identifier.t(),
+    derived: boolean()
+  }
 
-# Create from PIN component
-Sashite.Epin.new(pin)                  # => %Sashite.Epin{} (native)
-Sashite.Epin.new(pin, derived: true)   # => %Sashite.Epin{} (derived)
+  # Creates an Identifier from a PIN component.
+  # Raises ArgumentError if the PIN is invalid.
+  @spec new(Sashite.Pin.Identifier.t(), keyword()) :: t()
+  def new(pin, opts \\ [])
 
-# Validate string
-Sashite.Epin.valid?(epin_string)  # => boolean
+  # Returns true if derived style.
+  @spec derived?(t()) :: boolean()
+  def derived?(identifier)
+
+  # Returns true if native style.
+  @spec native?(t()) :: boolean()
+  def native?(identifier)
+
+  # Returns the EPIN string representation.
+  @spec to_string(t()) :: String.t()
+  def to_string(identifier)
+end
 ```
 
-### Core Methods (6 total)
+### Parsing
 
 ```elixir
-# Creation
-Sashite.Epin.new(pin, opts \\ [])      # Create from PIN + derivation flag
+# Parses an EPIN string into an Identifier.
+@spec Sashite.Epin.parse(String.t()) :: {:ok, Identifier.t()} | {:error, atom()}
+def parse(string)
 
-# Component access
-epin.pin                               # => %Sashite.Pin{}
-epin.derived                           # => boolean
-
-# Serialization
-Sashite.Epin.to_string(epin)           # => "K^'" or "K^"
-
-# PIN replacement
-Sashite.Epin.with_pin(epin, new_pin)   # New EPIN with different PIN
-
-# Derivation transformation
-Sashite.Epin.mark_derived(epin)        # Mark as derived (add ')
-Sashite.Epin.unmark_derived(epin)      # Mark as native (remove ')
-Sashite.Epin.with_derived(epin, bool)  # Set derivation explicitly
+# Parses an EPIN string, raises on error.
+@spec Sashite.Epin.parse!(String.t()) :: Identifier.t()
+def parse!(string)
 ```
 
-### Convenience Queries
+### Validation
 
 ```elixir
-Sashite.Epin.derived?(epin)            # epin.derived == true
-Sashite.Epin.native?(epin)             # epin.derived == false
-Sashite.Epin.same_derived?(e1, e2)     # Compare derivation status
+# Reports whether string is a valid EPIN.
+@spec Sashite.Epin.valid?(term()) :: boolean()
+def valid?(string)
 ```
 
-**That's the entire API.** Everything else uses the PIN module API directly.
-
-## Data Structure
+### Transformations
 
 ```elixir
-%Sashite.Epin{
-  pin: %Sashite.Pin{},   # Underlying PIN struct
-  derived: boolean()      # Derivation status (default: false)
-}
+# PIN replacement (returns new Identifier)
+@spec with_pin(t(), Sashite.Pin.Identifier.t()) :: t()
+def with_pin(identifier, new_pin)
+
+# Derivation transformations
+@spec derive(t()) :: t()
+def derive(identifier)
+
+@spec native(t()) :: t()
+def native(identifier)
 ```
 
-## Format Specification
+### Errors
 
-### Structure
+Parsing errors return tagged tuples:
 
-```
-<pin>[']
-```
+| Error | Cause |
+|-------|-------|
+| `{:error, :invalid_derivation_marker}` | Derivation marker misplaced or duplicated |
+| `{:error, :invalid_pin}` | PIN parsing failed |
+| `{:error, :empty_input}` | Empty string |
 
-Where:
-- `<pin>` is any valid PIN token
-- `'` is the optional derivation marker
+The bang variant `parse!/1` raises `ArgumentError` with descriptive messages.
 
-### Grammar (EBNF)
+## PIN Compatibility
 
-```ebnf
-epin ::= pin | pin "'"
-pin  ::= ["+" | "-"] letter ["^"]
-letter ::= "A" | ... | "Z" | "a" | ... | "z"
-```
-
-### Regular Expression
+Every valid PIN is a valid EPIN (native by default):
 
 ```elixir
-~r/\A[-+]?[A-Za-z]\^?'?\z/
-```
-
-## Cross-Style Game Example
-
-In a chess-vs-makruk cross-style match where:
-- First side native style = chess
-- Second side native style = makruk
-
-```elixir
-# First player pieces
-chess_king = Sashite.Epin.parse!("K^")   # Native Chess king
-makruk_pawn = Sashite.Epin.parse!("P'")  # Derived Makruk pawn (foreign)
-
-Sashite.Epin.native?(chess_king)    # => true (uses own style)
-Sashite.Epin.derived?(makruk_pawn)  # => true (uses opponent's style)
-
-# Second player pieces
-makruk_king = Sashite.Epin.parse!("k^")  # Native Makruk king
-chess_pawn = Sashite.Epin.parse!("p'")   # Derived Chess pawn (foreign)
-
-Sashite.Epin.native?(makruk_king)   # => true
-Sashite.Epin.derived?(chess_pawn)   # => true
+~w[K +R -p K^ +R^]
+|> Enum.each(fn pin_token ->
+  {:ok, epin} = Sashite.Epin.parse(pin_token)
+  true = Sashite.Epin.Identifier.native?(epin)
+  ^pin_token = Sashite.Epin.Identifier.to_string(epin)
+end)
 ```
 
 ## Design Principles
 
-### 1. Pure Composition
-
-EPIN doesn't reimplement PIN features — it extends PIN minimally:
-
-```elixir
-defstruct [:pin, :derived]
-
-def new(%Sashite.Pin{} = pin, opts \\ []) do
-  %__MODULE__{
-    pin: pin,
-    derived: Keyword.get(opts, :derived, false)
-  }
-end
-```
-
-### 2. Minimal API
-
-**6 core methods only:**
-1. `new/2` — create from PIN
-2. `pin` field — get PIN component
-3. `derived` field / `derived?/1` — check derivation
-4. `to_string/1` — serialize
-5. `with_pin/2` — replace PIN
-6. `with_derived/2` / `mark_derived/1` / `unmark_derived/1` — change derivation
-
-Everything else uses the PIN module API directly.
-
-### 3. Component Transparency
-
-Access PIN directly — no wrappers:
-
-```elixir
-# Use PIN API directly
-epin.pin.type
-Sashite.Pin.with_type(epin.pin, :Q)
-Sashite.Pin.enhanced?(epin.pin)
-Sashite.Pin.flip(epin.pin)
-
-# No need for wrapper functions like:
-# Sashite.Epin.type(epin)
-# Sashite.Epin.with_type(epin, :Q)
-# Sashite.Epin.enhanced?(epin)
-# Sashite.Epin.flip(epin)
-```
-
-### 4. Backward Compatibility
-
-Every valid PIN is a valid EPIN (without derivation marker):
-
-```elixir
-# All PIN identifiers work as EPIN
-~w(K +R -p K^ +R^)
-|> Enum.each(fn token ->
-  {:ok, epin} = Sashite.Epin.parse(token)
-  true = Sashite.Epin.native?(epin)
-  ^token = Sashite.Epin.to_string(epin)
-end)
-```
-
-## Comparison with PIN
-
-### What EPIN Adds
-
-```elixir
-# PIN: 4 attributes
-pin = Sashite.Pin.parse!("K^")
-pin.type       # Piece Name
-pin.side       # Piece Side
-pin.state      # Piece State
-pin.terminal   # Terminal Status
-
-# EPIN: 5 attributes (PIN + style)
-epin = Sashite.Epin.parse!("K^'")
-epin.pin.type       # Piece Name
-epin.pin.side       # Piece Side
-epin.pin.state      # Piece State
-epin.pin.terminal   # Terminal Status
-epin.derived        # Piece Style (5th attribute)
-```
-
-### When to Use EPIN vs PIN
-
-**Use PIN when:**
-- Single-style games (both players use same style)
-- Style information not needed
-- Maximum compatibility required
-
-**Use EPIN when:**
-- Cross-style games (different styles per player)
-- Pieces can change style (promotion to foreign piece)
-- Need to track native vs derived pieces
-
-## Attribute Mapping
-
-EPIN exposes all five fundamental attributes from the Sashité Game Protocol:
-
-| Protocol Attribute | EPIN Access | Example |
-|-------------------|-------------|---------|
-| **Piece Name** | `epin.pin.type` | `:K` (King), `:R` (Rook) |
-| **Piece Side** | `epin.pin.side` | `:first`, `:second` |
-| **Piece State** | `epin.pin.state` | `:normal`, `:enhanced`, `:diminished` |
-| **Terminal Status** | `epin.pin.terminal` | `true`, `false` |
-| **Piece Style** | `epin.derived` | `false` (native), `true` (derived) |
+- **Pure composition**: EPIN composes PIN without reimplementing features
+- **Minimal API**: Core functions (`derived?/1`, `native?/1`, `to_string/1`) plus transformations
+- **Component transparency**: Access PIN directly via `epin.pin`
+- **Immutable structs**: Functional transformations return new structs
+- **Elixir idioms**: `{:ok, _} | {:error, _}` tuples, bang variants, pattern matching
 
 ## Related Specifications
 
-- [EPIN Specification v1.0.0](https://sashite.dev/specs/epin/1.0.0/) — Technical specification
+- [Game Protocol](https://sashite.dev/game-protocol/) — Conceptual foundation
+- [EPIN Specification](https://sashite.dev/specs/epin/1.0.0/) — Official specification
 - [EPIN Examples](https://sashite.dev/specs/epin/1.0.0/examples/) — Usage examples
-- [PIN Specification v1.0.0](https://sashite.dev/specs/pin/1.0.0/) — Base component
-- [Sashité Game Protocol](https://sashite.dev/game-protocol/) — Foundation
+- [PIN Specification](https://sashite.dev/specs/pin/1.0.0/) — Base component
 
 ## License
 
-Available as open source under the [MIT License](https://opensource.org/licenses/MIT).
-
-## About
-
-Maintained by [Sashité](https://sashite.com/) — promoting chess variants and sharing the beauty of board game cultures.
+Available as open source under the [Apache License 2.0](https://opensource.org/licenses/Apache-2.0).

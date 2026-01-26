@@ -1,7 +1,7 @@
 defmodule Sashite.Epin.MixProject do
   use Mix.Project
 
-  @version "1.0.0"
+  @version "1.1.0"
   @source_url "https://github.com/sashite/epin.ex"
 
   def project do
@@ -20,7 +20,7 @@ defmodule Sashite.Epin.MixProject do
       homepage_url: "https://sashite.dev/specs/epin/",
       docs: [
         main: "readme",
-        extras: ["README.md", "LICENSE.md"]
+        extras: ["README.md", "LICENSE"]
       ]
     ]
   end
@@ -33,7 +33,9 @@ defmodule Sashite.Epin.MixProject do
 
   defp deps do
     [
-      {:sashite_pin, "~> 1.1"},
+      {:sashite_pin, "~> 2.1"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.31", only: :dev, runtime: false}
     ]
   end
@@ -49,8 +51,8 @@ defmodule Sashite.Epin.MixProject do
   defp package do
     [
       name: "sashite_epin",
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE.md),
-      licenses: ["MIT"],
+      files: ~w(lib .formatter.exs mix.exs README.md LICENSE),
+      licenses: ["Apache-2.0"],
       links: %{
         "GitHub" => @source_url,
         "Specification" => "https://sashite.dev/specs/epin/1.0.0/",
