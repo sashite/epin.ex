@@ -21,7 +21,6 @@ defmodule Sashite.Epin.Identifier do
   @see https://sashite.dev/specs/epin/1.0.0/
   """
 
-  alias Sashite.Epin.Constants
   alias Sashite.Pin.Identifier, as: PinIdentifier
 
   @enforce_keys [:pin, :derived]
@@ -119,11 +118,20 @@ defmodule Sashite.Epin.Identifier do
   def native?(%__MODULE__{derived: derived}), do: not derived
 
   # ===========================================================================
-  # String Conversion
+  # String Conversion — 624 compile-time generated clauses
+  #
+  # Each clause returns a pre-computed string literal. No concatenation,
+  # no function call at runtime.
+  #
+  # 26 abbrs × 2 sides × 3 states × 2 terminal × 2 derived = 624 clauses.
   # ===========================================================================
 
   @doc """
   Returns the EPIN string representation.
+
+  Each valid combination has its own function clause, generated at compile
+  time. The BEAM dispatches directly to the correct clause and returns a
+  pre-computed binary literal — zero concatenation, zero allocation.
 
   ## Examples
 
@@ -143,12 +151,39 @@ defmodule Sashite.Epin.Identifier do
       "+K^'"
   """
   @spec to_string(t()) :: String.t()
-  def to_string(%__MODULE__{pin: pin, derived: true}) do
-    PinIdentifier.to_string(pin) <> Constants.derivation_suffix()
-  end
 
-  def to_string(%__MODULE__{pin: pin, derived: false}) do
-    PinIdentifier.to_string(pin)
+  for abbr <- ~w(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)a do
+    upper = Atom.to_string(abbr)
+    lower = String.downcase(upper)
+
+    for {state, prefix} <- [normal: "", enhanced: "+", diminished: "-"],
+        {terminal, caret} <- [{false, ""}, {true, "^"}],
+        {derived, suffix} <- [{false, ""}, {true, "'"}] do
+      first_literal = prefix <> upper <> caret <> suffix
+      second_literal = prefix <> lower <> caret <> suffix
+
+      def to_string(%__MODULE__{
+            pin: %PinIdentifier{
+              abbr: unquote(abbr),
+              side: :first,
+              state: unquote(state),
+              terminal: unquote(terminal)
+            },
+            derived: unquote(derived)
+          }),
+          do: unquote(first_literal)
+
+      def to_string(%__MODULE__{
+            pin: %PinIdentifier{
+              abbr: unquote(abbr),
+              side: :second,
+              state: unquote(state),
+              terminal: unquote(terminal)
+            },
+            derived: unquote(derived)
+          }),
+          do: unquote(second_literal)
+    end
   end
 
   # ===========================================================================
@@ -271,9 +306,22 @@ defmodule Sashite.Epin.Identifier do
   end
 end
 
-# Implement String.Chars protocol for string interpolation
+# ===========================================================================
+# String.Chars Protocol Implementation
+# ===========================================================================
+
 defimpl String.Chars, for: Sashite.Epin.Identifier do
   def to_string(identifier) do
     Sashite.Epin.Identifier.to_string(identifier)
+  end
+end
+
+# ===========================================================================
+# Inspect Protocol Implementation
+# ===========================================================================
+
+defimpl Inspect, for: Sashite.Epin.Identifier do
+  def inspect(identifier, _opts) do
+    "#Sashite.Epin.Identifier<#{Sashite.Epin.Identifier.to_string(identifier)}>"
   end
 end

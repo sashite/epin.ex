@@ -229,9 +229,36 @@ defmodule Sashite.Epin.ParserTest do
     end
 
     test "returns error for invalid input type" do
-      assert {:error, :invalid_input} = Parser.parse(123)
-      assert {:error, :invalid_input} = Parser.parse(:K)
-      assert {:error, :invalid_input} = Parser.parse(nil)
+      assert {:error, :not_a_string} = Parser.parse(123)
+      assert {:error, :not_a_string} = Parser.parse(:K)
+      assert {:error, :not_a_string} = Parser.parse(nil)
+    end
+  end
+
+  # ===========================================================================
+  # Error Cases - Bounded Input
+  # ===========================================================================
+
+  describe "parse/1 error cases - bounded input" do
+    test "accepts input at maximum length (4 bytes)" do
+      assert {:ok, result} = Parser.parse("+K^'")
+      assert result.pin.abbr == :K
+      assert result.pin.state == :enhanced
+      assert result.pin.terminal == true
+      assert result.derived == true
+    end
+
+    test "rejects input exceeding maximum length" do
+      assert {:error, :invalid_pin} = Parser.parse("+K^'X")
+    end
+
+    test "rejects long alphabetic input" do
+      assert {:error, :invalid_pin} = Parser.parse("invalid")
+    end
+
+    test "rejects large input without allocation" do
+      large = String.duplicate("A", 10_000_000)
+      assert {:error, :invalid_pin} = Parser.parse(large)
     end
   end
 
@@ -358,11 +385,11 @@ defmodule Sashite.Epin.ParserTest do
         assert {:ok, components} = Parser.parse(input)
 
         pin =
-          Sashite.Pin.Identifier.new(
+          Sashite.Pin.fetch!(
             components.pin.abbr,
             components.pin.side,
             components.pin.state,
-            terminal: components.pin.terminal
+            components.pin.terminal
           )
 
         epin = Identifier.new(pin, derived: components.derived)
@@ -377,11 +404,11 @@ defmodule Sashite.Epin.ParserTest do
         assert {:ok, components} = Parser.parse(input)
 
         pin =
-          Sashite.Pin.Identifier.new(
+          Sashite.Pin.fetch!(
             components.pin.abbr,
             components.pin.side,
             components.pin.state,
-            terminal: components.pin.terminal
+            components.pin.terminal
           )
 
         epin = Identifier.new(pin, derived: components.derived)

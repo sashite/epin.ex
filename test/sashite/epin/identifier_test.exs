@@ -208,6 +208,61 @@ defmodule Sashite.Epin.IdentifierTest do
   end
 
   # ===========================================================================
+  # Inspect Protocol
+  # ===========================================================================
+
+  describe "Inspect protocol" do
+    test "simple native identifier" do
+      pin = Sashite.Pin.parse!("K")
+      epin = Identifier.new(pin)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<K>"
+    end
+
+    test "simple derived identifier" do
+      pin = Sashite.Pin.parse!("K")
+      epin = Identifier.new(pin, derived: true)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<K'>"
+    end
+
+    test "second player identifier" do
+      pin = Sashite.Pin.parse!("k")
+      epin = Identifier.new(pin, derived: true)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<k'>"
+    end
+
+    test "enhanced terminal derived" do
+      pin = Sashite.Pin.parse!("+K^")
+      epin = Identifier.new(pin, derived: true)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<+K^'>"
+    end
+
+    test "diminished native" do
+      pin = Sashite.Pin.parse!("-R")
+      epin = Identifier.new(pin)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<-R>"
+    end
+
+    test "terminal native" do
+      pin = Sashite.Pin.parse!("K^")
+      epin = Identifier.new(pin)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<K^>"
+    end
+
+    test "is consistent with to_string/1" do
+      pin = Sashite.Pin.parse!("+K^")
+      epin = Identifier.new(pin, derived: true)
+
+      assert inspect(epin) == "#Sashite.Epin.Identifier<#{Identifier.to_string(epin)}>"
+    end
+  end
+
+  # ===========================================================================
   # derive/1 Transformation
   # ===========================================================================
 

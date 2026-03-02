@@ -20,7 +20,7 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:sashite_epin, "~> 1.1"}
+    {:sashite_epin, "~> 1.2"}
   ]
 end
 ```
@@ -28,7 +28,7 @@ end
 ## Dependencies
 
 ```elixir
-{:sashite_pin, "~> 2.1"}  # Piece Identifier Notation
+{:sashite_pin, "~> 3.1"}  # Piece Identifier Notation
 ```
 
 ## Usage
@@ -82,6 +82,9 @@ Identifier.to_string(epin)  # => "K^'"
 
 # String interpolation works via String.Chars protocol
 "Piece: #{epin}"  # => "Piece: K^'"
+
+# Developer-friendly inspection via Inspect protocol
+inspect(epin)  # => "#Sashite.Epin.Identifier<K^'>"
 ```
 
 ### Validation
@@ -260,9 +263,10 @@ Parsing errors return tagged tuples:
 
 | Error | Cause |
 |-------|-------|
-| `{:error, :invalid_derivation_marker}` | Derivation marker misplaced or duplicated |
-| `{:error, :invalid_pin}` | PIN parsing failed |
+| `{:error, :not_a_string}` | Input is not a binary |
 | `{:error, :empty_input}` | Empty string |
+| `{:error, :invalid_derivation_marker}` | Derivation marker misplaced or duplicated |
+| `{:error, :invalid_pin}` | PIN parsing failed (or input exceeds max length) |
 
 The bang variant `parse!/1` raises `ArgumentError` with descriptive messages.
 
@@ -282,6 +286,8 @@ end)
 ## Design Principles
 
 - **Pure composition**: EPIN composes PIN without reimplementing features
+- **Bounded input**: Inputs exceeding the maximum token length (4 bytes) are rejected immediately, before any allocation
+- **Zero-allocation serialization**: `to_string/1` uses 624 compile-time generated clauses returning pre-computed binary literals
 - **Minimal API**: Core functions (`derived?/1`, `native?/1`, `to_string/1`) plus transformations
 - **Component transparency**: Access PIN directly via `epin.pin`
 - **Immutable structs**: Functional transformations return new structs

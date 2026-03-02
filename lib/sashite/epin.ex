@@ -75,11 +75,11 @@ defmodule Sashite.Epin do
     case Parser.parse(string) do
       {:ok, components} ->
         pin =
-          Sashite.Pin.Identifier.new(
+          Sashite.Pin.fetch!(
             components.pin.abbr,
             components.pin.side,
             components.pin.state,
-            terminal: components.pin.terminal
+            components.pin.terminal
           )
 
         identifier = Identifier.new(pin, derived: components.derived)

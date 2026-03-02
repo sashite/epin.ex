@@ -2,8 +2,10 @@ defmodule Sashite.Epin.Parser do
   @moduledoc """
   Parser for EPIN (Extended Piece Identifier Notation) strings.
 
-  This parser extracts the derivation marker and delegates PIN parsing
-  to the sashite_pin library.
+  Bounded-input, allocation-free parsing:
+  - Rejects inputs exceeding the maximum EPIN token length (4 bytes) immediately.
+  - Detects the derivation marker with a single byte test on the last position.
+  - Delegates PIN parsing to the sashite_pin library.
 
   ## Examples
 
@@ -16,11 +18,17 @@ defmodule Sashite.Epin.Parser do
       iex> Sashite.Epin.Parser.parse("K''")
       {:error, :invalid_derivation_marker}
 
+      iex> Sashite.Epin.Parser.parse(nil)
+      {:error, :not_a_string}
+
   @see https://sashite.dev/specs/epin/1.0.0/
   """
 
   alias Sashite.Epin.Constants
   alias Sashite.Pin.Parser, as: PinParser
+
+  # Byte value of the derivation marker (apostrophe, 0x27).
+  @apostrophe ?'
 
   @doc """
   Parses an EPIN string into its components.
@@ -33,6 +41,13 @@ defmodule Sashite.Epin.Parser do
 
   - `{:ok, map}` with `:pin` (PIN components map) and `:derived` keys
   - `{:error, reason}` if the input is not a valid EPIN string
+
+  ## Error reasons
+
+  - `:not_a_string` — input is not a binary
+  - `:empty_input` — input is an empty string
+  - `:invalid_derivation_marker` — apostrophe misplaced or duplicated
+  - `:invalid_pin` — PIN component is invalid (or input exceeds max length)
 
   ## Examples
 
@@ -47,17 +62,33 @@ defmodule Sashite.Epin.Parser do
 
       iex> Sashite.Epin.Parser.parse("K''")
       {:error, :invalid_derivation_marker}
+
+      iex> Sashite.Epin.Parser.parse("K'^")
+      {:error, :invalid_derivation_marker}
+
+      iex> Sashite.Epin.Parser.parse(nil)
+      {:error, :not_a_string}
   """
   @spec parse(String.t()) :: {:ok, map()} | {:error, atom()}
   def parse(input) when is_binary(input) do
-    with :ok <- validate_not_empty(input),
-         {:ok, derived, pin_string} <- extract_derivation(input),
-         {:ok, pin_components} <- parse_pin_component(pin_string) do
-      {:ok, %{pin: pin_components, derived: derived}}
+    len = byte_size(input)
+
+    cond do
+      len == 0 ->
+        {:error, :empty_input}
+
+      len > Constants.max_string_length() ->
+        {:error, :invalid_pin}
+
+      :binary.at(input, len - 1) == @apostrophe ->
+        parse_derived(input, len)
+
+      true ->
+        parse_native(input)
     end
   end
 
-  def parse(_input), do: {:error, :invalid_input}
+  def parse(_input), do: {:error, :not_a_string}
 
   @doc """
   Reports whether the input is a valid EPIN string.
@@ -99,38 +130,36 @@ defmodule Sashite.Epin.Parser do
   # Private Functions
   # ===========================================================================
 
-  defp validate_not_empty(""), do: {:error, :empty_input}
-  defp validate_not_empty(_input), do: :ok
+  # Input ends with apostrophe: strip it, check for duplicates, parse PIN.
+  defp parse_derived(input, len) do
+    pin_string = binary_part(input, 0, len - 1)
 
-  defp extract_derivation(input) do
-    suffix = Constants.derivation_suffix()
-
-    cond do
-      not String.contains?(input, suffix) ->
-        {:ok, false, input}
-
-      String.ends_with?(input, suffix) and count_occurrences(input, suffix) == 1 ->
-        pin_string = String.slice(input, 0..-2//1)
-        {:ok, true, pin_string}
-
-      true ->
-        {:error, :invalid_derivation_marker}
+    if has_apostrophe?(pin_string) do
+      {:error, :invalid_derivation_marker}
+    else
+      parse_pin(pin_string, true)
     end
   end
 
-  defp count_occurrences(string, substring) do
-    string
-    |> String.graphemes()
-    |> Enum.count(&(&1 == substring))
+  # Input does not end with apostrophe: check for misplaced ones, parse PIN.
+  defp parse_native(input) do
+    if has_apostrophe?(input) do
+      {:error, :invalid_derivation_marker}
+    else
+      parse_pin(input, false)
+    end
   end
 
-  defp parse_pin_component(pin_string) do
+  # Delegates to PIN parser and wraps the result.
+  defp parse_pin(pin_string, derived) do
     case PinParser.parse(pin_string) do
-      {:ok, pin_components} ->
-        {:ok, pin_components}
-
-      {:error, _reason} ->
-        {:error, :invalid_pin}
+      {:ok, pin_components} -> {:ok, %{pin: pin_components, derived: derived}}
+      {:error, _reason} -> {:error, :invalid_pin}
     end
+  end
+
+  # O(1) apostrophe check. Input is bounded to at most 3 bytes at call site.
+  defp has_apostrophe?(bin) do
+    :binary.match(bin, <<@apostrophe>>) != :nomatch
   end
 end
